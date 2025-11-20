@@ -1,0 +1,31 @@
+---
+
+- name: Add deploy users
+  block:
+    - name: Ensure append group exists
+      tags: deploy
+      ansible.builtin.getent:
+        database: group
+        key: "{{ item }}"
+      loop: "{{ deploy_users | map(attribute='groups') | flatten | unique }}"
+      register: group_check
+
+    - name: Create new user
+      tags: deploy
+      ansible.builtin.user:
+        name: "{{ item.user }}"
+        state: present
+        create_home: "{{ item.create_home }}"
+        uid: "{{ item.uid }}"
+        password: "{{ item.password }}"
+        update_password: on_create
+        shell: "{{ item.shell }}"
+        groups: "{{ item.groups }}"
+        append: yes
+      loop: "{{ deploy_users }}"
+      when: item.groups | difference(group_check.results | map(attribute='item') | list) | length == 0
+
+  rescue:
+    - tags: deploy
+      ansible.builtin.debug:
+        msg: "The {{ group_check.results | selectattr('failed') | map(attribute='item') | string }} groups does not exist"
