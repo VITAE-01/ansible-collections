@@ -1,0 +1,15 @@
+---
+
+- name: Rollback - stop services on Debian based systems
+  tags: rollback
+  ansible.builtin.service:
+    name: "{{ item }}"
+    state: stopped
+  loop: "{{ deb_services }}"
+
+- name: Rollback - uninstall packages on Debian based systems
+  tags: rollback
+  ansible.builtin.apt:
+    name: "{{ item }}"
+    state: absent
+  loop: "{{ deb_packages }}"

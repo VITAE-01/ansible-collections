@@ -1,0 +1,17 @@
+---
+
+- name: Install packages on Debian based systems
+  tags: deploy
+  ansible.builtin.apt:
+    name: "{{ item }}"
+    state: latest
+  loop: "{{ deb_packages }}"
+  notify: deb service restart
+
+- name: Enable services on Debian based systems
+  tags: deploy
+  ansible.builtin.service:
+    name: "{{ item }}"
+    enabled: yes
+  loop: "{{ deb_services }}"
+  when: deb_services is defined

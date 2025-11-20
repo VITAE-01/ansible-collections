@@ -1,0 +1,15 @@
+---
+
+- name: Rollback - stop services on RedHat based systems
+  tags: rollback
+  ansible.builtin.service:
+    name: "{{ item }}"
+    state: stopped
+  loop: "{{ redhat_services }}"
+
+- name: Rollback - uninstall packages on RedHat based systems
+  tags: rollback
+  ansible.builtin.dnf:
+    name: "{{ item }}"
+    state: absent
+  loop: "{{ redhat_packages }}"

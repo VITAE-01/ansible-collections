@@ -1,0 +1,17 @@
+---
+
+- name: Install packages on RedHat based systems
+  tags: deploy
+  ansible.builtin.dnf:
+    name: "{{ item }}"
+    state: latest
+  loop: "{{ redhat_packages }}"
+  notify: redhat service restart
+
+- name: Enable and restart services on RedHat based systems
+  tags: deploy
+  ansible.builtin.service:
+    name: "{{ item }}"
+    enabled: yes
+  loop: "{{ redhat_services }}"
+  when: redhat_services is defined

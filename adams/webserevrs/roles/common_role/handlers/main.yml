@@ -1,0 +1,18 @@
+---
+
+- name: Restart services on Debian based systems
+  tags: deploy
+  listen: deb service restart
+  ansible.builtin.service:
+    name: "{{ item }}"
+    state: restarted
+  loop: "{{ deb_services }}"
+
+
+- name: Restart services on RedHat based systems
+  tags: deploy
+  listen: redhat service restart
+  ansible.builtin.service:
+    name: "{{ item }}"
+    state: restarted
+  loop: "{{ redhat_services }}"
