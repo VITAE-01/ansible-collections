@@ -1,0 +1,9 @@
+---
+
+- name: Rollback - Delete Users
+  tags: rollback
+  ansible.builtin.user:
+    name: "{{ item.user }}"
+    state: absent
+    remove: true
+  loop: "{{ deploy_users }}"

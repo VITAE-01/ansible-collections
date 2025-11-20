@@ -1,0 +1,19 @@
+---
+# defaults file for add_user_role
+
+deploy_users:
+  - user: "john_doe"
+    create_home: true
+    uid: 1050
+    groups: 
+      - "developers"
+      - "testers"
+    password: "{{ 'securepassword' | password_hash('sha512') }}"
+    shell: "/bin/bash"
+  - user: "jane_smith"
+    create_home: true
+    uid: 1051
+    groups: 
+      - "testers"
+    password: "{{ 'anothersecurepassword' | password_hash('sha512')}}"
+    shell: null

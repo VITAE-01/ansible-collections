@@ -1,0 +1,9 @@
+---
+
+- name: Rollback - remove groups
+  tags: rollback
+  ansible.builtin.group:
+    name: "{{ item.name }}"
+    force: yes
+    state: absent
+  loop: "{{ deploy_groups }}"

@@ -1,0 +1,10 @@
+---
+
+- name: Create new groups
+  tags: deploy
+  ansible.builtin.group:
+    name: "{{ item.name }}"
+    state: present
+    system: "{{ item.system }}"
+    gid: "{{ item.gid }}"
+  loop: "{{ deploy_groups }}"

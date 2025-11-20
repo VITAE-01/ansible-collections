@@ -1,0 +1,13 @@
+---
+# defaults file for add_group_role
+
+deploy_groups:
+  - name: developers
+    gid: 2000
+    system: false
+  - name: testers
+    gid: 2002
+    system: false
+  - name: mysqlgroup
+    gid: 55
+    system: true
