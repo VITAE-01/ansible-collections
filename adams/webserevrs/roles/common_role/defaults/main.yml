@@ -1,0 +1,7 @@
+---
+
+deb_services:
+  - apache2
+
+redhat_services:
+  - httpd

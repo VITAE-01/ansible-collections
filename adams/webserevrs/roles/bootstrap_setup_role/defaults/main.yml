@@ -1,0 +1,18 @@
+---
+# defaults file for bootstrap_setup_role
+
+deb_packages:
+  - apache2
+  - libapache2-mod-php
+  - tree
+
+deb_services:
+  - apache2
+
+redhat_packages:
+  - httpd
+  - php
+  - tree
+
+redhat_services:
+  - httpd

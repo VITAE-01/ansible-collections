@@ -1,0 +1,26 @@
+---
+# tasks file for bootstrap_setup_role
+
+- name: Update cache on server
+  tags: deploy
+  ansible.builtin.package:
+    update_cache: yes
+
+- name: Include common role
+  tags: deploy
+  ansible.builtin.include_role:
+    name: common_role
+
+- block:
+  - include_tasks: deb_package.yml
+    tags: deploy
+  - include_tasks: deb_rollback.yml
+    tags: rollback
+  when: ansible_distribution == "Ubuntu"
+
+- block:
+  - include_tasks: redhat_package.yml
+    tags: deploy
+  - include_tasks: redhat_rollback.yml
+    tags: rollback
+  when: ansible_distribution in ['CentOS', 'RedHat', 'Fedora']

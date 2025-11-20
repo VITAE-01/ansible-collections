@@ -1,0 +1,9 @@
+---
+# tasks file for front_end_role
+- name: Include common role
+  tags: deploy, rollback
+  ansible.builtin.include_role:
+    name: common_role
+
+- import_tasks: html.yml
+- import_tasks: rollback.yml
