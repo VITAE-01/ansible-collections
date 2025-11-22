@@ -4,6 +4,10 @@ set -e
 org=adams
 collections=$(ls $PWD/$org)
 
+NEXUS_URL=$NEXUS_URL
+NEXUS_USER=$NEXUS_USER
+NEXUS_PASS=$NEXUS_PASS
+
 for collection in $collections; do
 
     VERSION=$(grep '^version:' $org/$collection/galaxy.yml | awk '{print $2}')
@@ -18,7 +22,9 @@ for collection in $collections; do
 
     ansible-galaxy collection build --force $org/$collection --output-path dist/
 
-    echo -e -n "\nPulishing release for $collection version $VERSION\n"
+    TARFILE="dist/$org-$collection-$VERSION.tar.gz"
+
+    echo -e -n "\nPulishing release for $collection version $VERSION to github\n"
 
     git tag -a "$collection-v$VERSION" -m "Release $collection version $VERSION"
     git push origin "$collection-v$VERSION"
@@ -26,6 +32,11 @@ for collection in $collections; do
     gh release create "$collection-v$VERSION" dist/$org-$collection-$VERSION.tar.gz \
     --title "$org-$collection-v$VERSION" \
     --notes "Automated release of $org-$collection version $VERSION"
+
+    echo -e -n "\nPublishing release for $collection version $VERSION to Nexus artifactory\n"
+    curl -u "$NEXUS_USER:$NEXUS_PASS" \
+        --upload-file "$TARFILE" \
+        "$NEXUS_URL/$org-$collection-$VERSION.tar.gz"
 
 done
 
