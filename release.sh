@@ -4,9 +4,15 @@ set -e
 org=adams
 collections=$(ls $PWD/$org)
 
-NEXUS_URL=$NEXUS_URL
-NEXUS_USER=$NEXUS_USER
-NEXUS_PASS=$NEXUS_PASS
+NEXUS_REPO_URL=$1
+NEXUS_USER=$2
+NEXUS_PASS=$3
+
+if [[ $# -ne 3 ]]; then
+    echo "Error: Invalid number of arguments."
+    echo "Usage: $0 <NEXUS_REPO_URL> <NEXUS_USER> <NEXUS_PASS>"
+    exit 1
+fi
 
 for collection in $collections; do
 
@@ -36,7 +42,7 @@ for collection in $collections; do
     echo -e -n "\nPublishing release for $collection version $VERSION to Nexus artifactory\n"
     curl -u "$NEXUS_USER:$NEXUS_PASS" \
         --upload-file "$TARFILE" \
-        "$NEXUS_URL/$org-$collection-$VERSION.tar.gz"
+        "$NEXUS_REPO_URL/$org-$collection-$VERSION.tar.gz"
 
 done
 
