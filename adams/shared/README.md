@@ -1,4 +1,6 @@
-# adams.shared
+# Ansible Collection - adams.shared
+
+Documentation for the collection.
 
 Overview
 --------
@@ -94,7 +96,7 @@ To add a new role to this collection:
 2. Initialize collection metadata:
    ```bash
    cd adams/shared/roles/
-   ansible-galaxy role init new-role-name
+   ansible-galaxy role init new-role-name --force
    ```
 
 3. Update `galaxy.yml` with:
@@ -120,6 +122,3 @@ ansible-playbook playbooks/init_user.yml --tags rollback
 Notes
 -----
 Keep role responsibilities small and idempotent. Use the `release.sh` script to publish and tag releases consistently.
-# Ansible Collection - adams.shared
-
-Documentation for the collection.
