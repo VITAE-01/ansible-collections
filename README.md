@@ -125,12 +125,12 @@ To add a new collection to this repository:
 
 1. Create a new directory under `adams/`:
    ```bash
-   mkdir -p adams/new-collection/roles
+   mkdir -p adams/new_collection_name
    ```
 
 2. Initialize collection metadata:
    ```bash
-   ansible-galaxy collection init --init-path adams/ adams.new_collection
+   ansible-galaxy collection init adams.new_collection_name --force
    ```
 
 3. Update `galaxy.yml` with:
@@ -179,9 +179,9 @@ To add a new collection to this repository:
 
 Each role includes test playbooks:
 ```bash
-# Test a specific role
-ansible-playbook -i adams/shared/roles/add_user_role/tests/inventory \
-                 adams/shared/roles/add_user_role/tests/test.yml
+# Test a specific role. Example
+cd adams/shared/roles
+ansible-playbook -i add_user_role/tests/inventory add_user_role/tests/test.yml
 ```
 
 ## File Descriptions
