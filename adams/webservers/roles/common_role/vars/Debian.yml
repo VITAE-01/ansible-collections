@@ -1,0 +1,4 @@
+---
+
+deb_services:
+  - apache2
