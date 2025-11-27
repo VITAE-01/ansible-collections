@@ -1,5 +1,11 @@
 ---
 # tasks file for front_end_role
+
+- name: Include OS-specific variables
+  tags: deploy, rollback
+  ansible.builtin.include_vars:
+    file: "{{ ansible_os_family }}.yml"
+    
 - name: Include common role
   tags: deploy, rollback
   ansible.builtin.include_role:

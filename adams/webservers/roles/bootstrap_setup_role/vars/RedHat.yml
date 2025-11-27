@@ -1,0 +1,10 @@
+---
+# defaults file for bootstrap_setup_role
+
+redhat_packages:
+  - httpd
+  - php
+  - tree
+
+redhat_services:
+  - httpd

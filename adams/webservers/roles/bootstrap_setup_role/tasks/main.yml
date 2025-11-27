@@ -1,6 +1,11 @@
 ---
 # tasks file for bootstrap_setup_role
 
+- name: Include OS-specific variables
+  tags: deploy, rollback
+  ansible.builtin.include_vars:
+    file: "{{ ansible_os_family }}.yml"
+
 - name: Update cache on server
   tags: deploy
   ansible.builtin.package:
@@ -16,11 +21,11 @@
     tags: deploy
   - include_tasks: deb_rollback.yml
     tags: rollback
-  when: ansible_distribution == "Ubuntu"
+  when: ansible_os_family == 'Debian'
 
 - block:
   - include_tasks: redhat_package.yml
     tags: deploy
   - include_tasks: redhat_rollback.yml
     tags: rollback
-  when: ansible_distribution in ['CentOS', 'RedHat', 'Fedora']
+  when: ansible_os_family == 'RedHat'
