@@ -1,0 +1,4 @@
+---
+
+redhat_services:
+  - httpd
