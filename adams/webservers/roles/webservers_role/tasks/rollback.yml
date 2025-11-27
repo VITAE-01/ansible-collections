@@ -1,12 +1,12 @@
 ---
 
-- name: Rollback - Stop Apache service
+- name: Rollback - Stop webserver service
   tags: rollback
   ansible.builtin.service:
-    name: "{{ 'httpd' if ansible_facts['os_family'] == 'RedHat' else 'apache2' }}"
+    name: "{{ 'httpd' if ansible_os_family == 'RedHat' else 'apache2' }}"
     state: stopped
 
-- name: Rollback - Remove Apache default html file
+- name: Rollback - Remove webserver default html file
   tags: rollback
   ansible.builtin.file:
     path: /var/www/html/index.html

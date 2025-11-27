@@ -1,8 +1,8 @@
 ---
 
-- name: Copy default html file for Apache web server
+- name: Copy default html file for web server
   tags: deploy
   ansible.builtin.copy:
-    src: apache.html
+    src: "{{ 'adams.html' if _adams == 'enabled' else 'vitae.html' }}"
     dest: /var/www/html/index.html
-  notify: "{{ 'redhat service restart' if ansible_facts['os_family'] == 'RedHat' else 'deb service restart' }}"
+  notify: "{{ 'redhat service restart' if ansible_os_family == 'RedHat' else 'deb service restart' }}"
