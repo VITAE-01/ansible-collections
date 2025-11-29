@@ -61,19 +61,18 @@ pipeline {
                         echo "https://x-access-token:${GITHUB_TOKEN}@github.com" > ~/.git-credentials
 
                         git config --global --add safe.directory "/var/lib/jenkins/workspace/${JOB_NAME}"
-                        git remote -v
                     """
 
-                    // echo "Publishing Ansible collections to Github Release and Nexus repository for repo: ${repoName} - branch: ${branchName}"
+                    echo "Publishing Ansible collections to Github Release and Nexus repository for repo: ${repoName} - branch: ${branchName}"
 
-                    // dir('ansible-collections') {
-                    //     withCredentials([usernamePassword(credentialsId: 'NEXUS_CREDS', passwordVariable: 'NEXUS_PASS', usernameVariable: 'NEXUS_USER')]) {
-                    //                 sh """
-                    //                     chmod +x ./release.sh
-                    //                     ./release.sh "${NEXUS_REPO_URL}" ${NEXUS_USER} ${NEXUS_PASS} "${branchName}"
-                    //                 """
-                    //     }
-                    // }
+                    dir('ansible-collections') {
+                        withCredentials([usernamePassword(credentialsId: 'NEXUS_CREDS', passwordVariable: 'NEXUS_PASS', usernameVariable: 'NEXUS_USER')]) {
+                                    sh """
+                                        chmod +x ./release.sh
+                                        ./release.sh "${NEXUS_REPO_URL}" ${NEXUS_USER} ${NEXUS_PASS} "${branchName}"
+                                    """
+                        }
+                    }
                     
                 }
             }
