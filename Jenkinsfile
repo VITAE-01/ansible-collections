@@ -59,30 +59,13 @@ pipeline {
                 script {
                     echo "Publishing Ansible collections to Github Release and Nexus repository for repo: ${repoName} - branch: ${branchName}"
                     dir('ansible-collections') {
-                        
+                        echo "Running publish script..."
+                        sh """
+                            chmod +x ./release.sh
+                            ./release.sh "${NEXUS_REPO_URL}" "${NEXUS_USER}" "${NEXUS_PASS}" "${branchName}"
+                        """
                     }
                     
-                }
-            }
-        }
-
-        stage('Auth dry run') {
-            when {
-                expression {
-                    return branchName == 'Dev'
-                }
-            }
-            steps {
-                script {
-                    echo "Performing auth dry run for repo: ${repoName} - branch: ${branchName}"
-
-                    sh """
-                        echo "Performing dry run with the following credentials:"
-                        gh auth status
-                    """
-                    sh """
-                        echo "NEXUS_REPO_URL: $NEXUS_REPO_URL"
-                    """
                 }
             }
         }
@@ -98,6 +81,10 @@ pipeline {
         }
         aborted {
             echo 'Pipeline was aborted.'
+        }
+        always {
+            echo 'Pipeline has finished execution.'
+            cleanWs()
         }
     }
 }
