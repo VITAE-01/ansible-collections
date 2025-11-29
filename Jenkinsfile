@@ -5,8 +5,6 @@ pipeline {
     agent any
 
     environment {
-        NEXUS_USER = credentials('NEXUS_USER')
-        NEXUS_PASS = credentials('NEXUS_PASS')
         NEXUS_REPO_URL = credentials('NEXUS_REPO_URL')
         GITHUB_TOKEN = credentials('GITHUB_TOKEN')
     }
@@ -48,11 +46,8 @@ pipeline {
 
         stage('Publish collections to github release and nexus repository') {
             when {
-                anyOf {
-                    branch 'PR-*'
-                    expression {
-                        return branchName == 'Dev'
-                    }
+                expression {
+                    return branchName == 'Dev'
                 }
             }
             steps {
@@ -60,10 +55,12 @@ pipeline {
                     echo "Publishing Ansible collections to Github Release and Nexus repository for repo: ${repoName} - branch: ${branchName}"
                     dir('ansible-collections') {
                         echo "Running publish script..."
-                        sh """
-                            chmod +x ./release.sh
-                            ./release.sh "${NEXUS_REPO_URL}" "${NEXUS_USER}" "${NEXUS_PASS}" "${branchName}"
-                        """
+                        withCredentials([usernamePassword(credentialsId: 'NEXUS_CREDS', passwordVariable: 'NEXUS_PASS', usernameVariable: 'NEXUS_USER')]) {
+                            sh """
+                                chmod +x ./release.sh
+                                ./release.sh "${NEXUS_REPO_URL}" "${branchName}"
+                            """
+                        }
                     }
                     
                 }
