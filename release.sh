@@ -43,7 +43,7 @@ for collection in $collections; do
     echo -e -n "\nPublishing release for $collection version $VERSION-$ENV to Nexus artifactory\n"
     curl -u "$NEXUS_USER:$NEXUS_PASS" \
         --upload-file "$TARFILE" \
-        "$NEXUS_REPO_URL/$org-$collection-$VERSION-$ENV.tar.gz"
+        "$NEXUS_REPO_URL/$ENV/$org-$collection-$VERSION-$ENV.tar.gz"
 
 done
 
