@@ -54,12 +54,13 @@ pipeline {
                 script {
                     echo "Publishing Ansible collections to Github Release and Nexus repository for repo: ${repoName} - branch: ${branchName}"
                     dir('ansible-collections') {
-                        echo "Running publish script..."
                         withCredentials([usernamePassword(credentialsId: 'NEXUS_CREDS', passwordVariable: 'NEXUS_PASS', usernameVariable: 'NEXUS_USER')]) {
-                            sh """
-                                chmod +x ./release.sh
-                                ./release.sh "${NEXUS_REPO_URL}" ${NEXUS_USER} ${NEXUS_PASS} "${branchName}"
-                            """
+                            sshagent (['jenkins-github-ssh-key']) {
+                                    sh """
+                                        chmod +x ./release.sh
+                                        ./release.sh "${NEXUS_REPO_URL}" ${NEXUS_USER} ${NEXUS_PASS} "${branchName}"
+                                    """
+                            }
                         }
                     }
                     
