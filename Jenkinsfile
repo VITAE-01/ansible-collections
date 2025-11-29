@@ -5,8 +5,6 @@ pipeline {
     agent any
 
     environment {
-        NEXUS_USER = credentials('NEXUS_USER')
-        NEXUS_PASS = credentials('NEXUS_PASS')
         NEXUS_REPO_URL = credentials('NEXUS_REPO_URL')
         GITHUB_TOKEN = credentials('GITHUB_TOKEN')
     }
@@ -48,41 +46,23 @@ pipeline {
 
         stage('Publish collections to github release and nexus repository') {
             when {
-                anyOf {
-                    branch 'PR-*'
-                    expression {
-                        return branchName == 'Dev'
-                    }
-                }
-            }
-            steps {
-                script {
-                    echo "Publishing Ansible collections to Github Release and Nexus repository for repo: ${repoName} - branch: ${branchName}"
-                    dir('ansible-collections') {
-                        
-                    }
-                    
-                }
-            }
-        }
-
-        stage('Auth dry run') {
-            when {
                 expression {
                     return branchName == 'Dev'
                 }
             }
             steps {
                 script {
-                    echo "Performing auth dry run for repo: ${repoName} - branch: ${branchName}"
-
-                    sh """
-                        echo "Performing dry run with the following credentials:"
-                        gh auth status
-                    """
-                    sh """
-                        echo "NEXUS_REPO_URL: $NEXUS_REPO_URL"
-                    """
+                    echo "Publishing Ansible collections to Github Release and Nexus repository for repo: ${repoName} - branch: ${branchName}"
+                    dir('ansible-collections') {
+                        echo "Running publish script..."
+                        withCredentials([usernamePassword(credentialsId: 'NEXUS_CREDS', passwordVariable: 'NEXUS_PASS', usernameVariable: 'NEXUS_USER')]) {
+                            sh """
+                                chmod +x ./release.sh
+                                ./release.sh "${NEXUS_REPO_URL}" "${branchName}"
+                            """
+                        }
+                    }
+                    
                 }
             }
         }
@@ -98,6 +78,10 @@ pipeline {
         }
         aborted {
             echo 'Pipeline was aborted.'
+        }
+        always {
+            echo 'Pipeline has finished execution.'
+            cleanWs()
         }
     }
 }
