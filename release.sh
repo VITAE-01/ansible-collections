@@ -8,10 +8,11 @@ NEXUS_REPO_URL=$1
 NEXUS_USER=$2
 NEXUS_PASS=$3
 ENV=$4
+REPOSITORY=$5
 
-if [[ $# -ne 4 ]]; then
+if [[ $# -ne 5 ]]; then
     echo "Error: Invalid number of arguments."
-    echo "Usage: $0 <NEXUS_REPO_URL> <NEXUS_USER> <NEXUS_PASS> <ENV>"
+    echo "Usage: $0 <NEXUS_REPO_URL> <NEXUS_USER> <NEXUS_PASS> <ENV> <REPOSITORY>"
     exit 1
 fi
 
@@ -43,7 +44,7 @@ for collection in $collections; do
     echo -e -n "\nPublishing release for $collection version $VERSION-$ENV to Nexus artifactory\n"
     curl -u "$NEXUS_USER:$NEXUS_PASS" \
         --upload-file "$TARFILE" \
-        "$NEXUS_REPO_URL/$ENV/$org-$collection-$VERSION-$ENV.tar.gz"
+        "$NEXUS_REPO_URL/$REPOSITORY/$ENV/$org-$collection-$VERSION-$ENV.tar.gz"
 
 done
 
