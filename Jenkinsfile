@@ -4,6 +4,13 @@ def branchName = ''
 pipeline {
     agent any
 
+    environment {
+        NEXUS_USER = credentials('NEXUS_USER')
+        NEXUS_PASS = credentials('NEXUS_PASS')
+        NEXUS_REPO_URL = credentials('NEXUS_REPO_URL')
+        GITHUB_TOKEN = credentials('GITHUB_TOKEN')
+    }
+
     options {
         timestamps()
         disableConcurrentBuilds()
@@ -55,6 +62,27 @@ pipeline {
                         
                     }
                     
+                }
+            }
+        }
+
+        stage('Auth dry run') {
+            when {
+                expression {
+                    return branchName == 'Dev'
+                }
+            }
+            steps {
+                script {
+                    echo "Performing auth dry run for repo: ${repoName} - branch: ${branchName}"
+
+                    sh """
+                        echo "Performing dry run with the following credentials:"
+                        gh auth status
+                    """
+                    sh """
+                        echo "NEXUS_REPO_URL: $NEXUS_REPO_URL"
+                    """
                 }
             }
         }
