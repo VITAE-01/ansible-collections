@@ -53,7 +53,7 @@ pipeline {
             steps {
                 script {
                     echo "set git user config for jenkins"
-                    sh """
+                    sh '''
                         git config --global user.email "jenkins@local"
                         git config --global user.name "jenkins"
 
@@ -61,16 +61,16 @@ pipeline {
                         echo "https://x-access-token:${GITHUB_TOKEN}@github.com" > ~/.git-credentials
 
                         git config --global --add safe.directory "/var/lib/jenkins/workspace/${JOB_NAME}"
-                    """
+                    '''
 
                     echo "Publishing Ansible collections to Github Release and Nexus repository for repo: ${repoName} - branch: ${branchName}"
 
                     dir('ansible-collections') {
                         withCredentials([usernamePassword(credentialsId: 'NEXUS_CREDS', passwordVariable: 'NEXUS_PASS', usernameVariable: 'NEXUS_USER')]) {
-                                    sh """
+                                    sh '''
                                         chmod +x ./release.sh
                                         ./release.sh "${NEXUS_REPO_URL}" ${NEXUS_USER} ${NEXUS_PASS} "${branchName}" "${repoName}"
-                                    """
+                                    '''
                         }
                     }
                     
