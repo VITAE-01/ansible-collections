@@ -69,8 +69,8 @@ pipeline {
                         withCredentials([usernamePassword(credentialsId: 'NEXUS_CREDS', passwordVariable: 'NEXUS_PASS', usernameVariable: 'NEXUS_USER')]) {
                                     sh '''
                                         chmod +x ./release.sh
-                                        ./release.sh "${NEXUS_REPO_URL}" ${NEXUS_USER} ${NEXUS_PASS} "${branchName}" "${repoName}"
-                                    '''
+                                        ./release.sh "${NEXUS_REPO_URL}" ${NEXUS_USER} ${NEXUS_PASS} "${branchName} ${repoName}"
+                                    """
                         }
                     }
                     
