@@ -103,8 +103,14 @@ pipeline {
             }
             steps {
                 script {
+                    def gitCredentialsId = scm.userRemoteConfigs[0].credentialsId
+                    if (!gitCredentialsId) {
+                        error 'The job SCM configuration has no git credential; tag operations need its SSH key.'
+                    }
                     withCredentials([string(credentialsId: 'nexus-galaxy-token',
-                                        variable: 'ANSIBLE_GALAXY_SERVER_NEXUS_TOKEN')]) {
+                                        variable: 'ANSIBLE_GALAXY_SERVER_NEXUS_TOKEN'),
+                                     sshUserPrivateKey(credentialsId: gitCredentialsId,
+                                        keyFileVariable: 'GIT_SSH_KEY')]) {
                         collections.findAll { !results[it] }.each { c ->
                             withEnv(["COLLECTION_NAME=${c}"]) {
                                 lock(resource: "nexus-galaxy-adams-${c}") {
