@@ -14,7 +14,9 @@
 #   lookup error      | any           | fail, nothing changed                         (exit 1)
 #
 # Run it inside a per-collection lock so two builds never release the same collection at once.
-# Git runs as the agent user against the `origin` remote of the checkout.
+# Tag lookups and pushes go over SSH to the checkout's `origin` repository (an https GitHub
+# URL is rewritten to its SSH form). When GIT_SSH_KEY is set (the pipeline binds the job's
+# SSH credential to it), git uses that key; otherwise the agent user's own SSH setup.
 #
 # Usage: ci/release.sh <collection>
 # Needs: dist/adams-<collection>-<VERSION>.tar.gz (from ci/build.sh) and the
@@ -32,12 +34,20 @@ tag="$collection-$version"
 tarball="dist/adams-$collection-$version.tar.gz"
 [ -f "$tarball" ] || { echo "ERROR: $tarball was not built"; exit 1; }
 
+git_remote=$(git config --get remote.origin.url)
+case "$git_remote" in
+    https://github.com/*) git_remote="git@github.com:${git_remote#https://github.com/}" ;;
+esac
+if [ -n "${GIT_SSH_KEY:-}" ]; then
+    export GIT_SSH_COMMAND="ssh -i \"$GIT_SSH_KEY\" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=accept-new"
+fi
+
 # Python interpreter that ansible-galaxy runs with (works for system, venv and pipx installs)
 read -r -a galaxy_python <<< "$(sed -n '1s/^#!//p' "$(command -v ansible-galaxy)")"
 
 # Exit code 0 = exists, 2 = not found, anything else = lookup failed
 nexus_lookup() { "${galaxy_python[@]}" ci/nexus-version-exists.py adams "$collection" "$version"; }
-tag_lookup()   { git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; }
+tag_lookup()   { git ls-remote --exit-code --tags "$git_remote" "refs/tags/$tag" >/dev/null; }
 
 lookup() {
     local rc=0
@@ -58,10 +68,10 @@ push_tag() {
             tag -a "$tag" -m "Release adams.$collection $version"
     fi
     for attempt in 1 2 3; do
-        if git push origin "refs/tags/$tag"; then
+        if git push "$git_remote" "refs/tags/$tag"; then
             return 0
         fi
-        remote=$(git ls-remote origin "refs/tags/$tag^{}" | awk '{print $1}')
+        remote=$(git ls-remote "$git_remote" "refs/tags/$tag^{}" | awk '{print $1}')
         if [ "$remote" = "$head" ]; then
             return 0
         fi
