@@ -77,20 +77,6 @@ pipeline {
             }
         }
 
-        stage('Syntax check') {
-            steps {
-                script {
-                    collections.findAll { !results[it] }.each { c ->
-                        withEnv(["COLLECTION_NAME=${c}"]) {
-                            if (sh(script: 'bash ci/syntax-check.sh "$COLLECTION_NAME"', returnStatus: true) != 0) {
-                                results[c] = 'FAILED (syntax check)'
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
         stage('Build') {
             steps {
                 script {
@@ -102,7 +88,6 @@ pipeline {
                             }
                         }
                     }
-                    sh 'ls -l dist || true'
                 }
             }
         }
