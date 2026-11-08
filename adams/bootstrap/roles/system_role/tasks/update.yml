@@ -1,0 +1,17 @@
+---
+
+- name: Update the hostname
+  tags: update
+  ansible.builtin.hostname:
+    name: "{{ deploy_hostname }}"
+    use: systemd
+
+- name: Update the local repository file
+  tags: update
+  ansible.builtin.template:
+    src: "{{ redhat_repo_file }}.j2"
+    dest: "{{ redhat_repo_dir }}/{{ redhat_repo_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: redhat dnf makecache

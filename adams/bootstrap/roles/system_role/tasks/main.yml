@@ -1,0 +1,47 @@
+---
+# tasks file for system_role
+#
+# Nothing runs unless a direction is requested with --tags deploy, update or rollback.
+# `ansible_run_tags` holds the tags passed on the command line (['all'] when none are passed),
+# so each include below is skipped unless its own tag was requested.
+# `apply` passes the direction tag on to every task in the included file.
+
+- name: Pre-tasks - detect the OS family and load its variables
+  ansible.builtin.include_tasks:
+    file: pre_tasks.yml
+    apply:
+      tags: [deploy, update, rollback]
+  tags: [deploy, update, rollback]
+  when: ansible_run_tags | intersect(['deploy', 'update', 'rollback']) | length > 0
+
+- name: Pre-flight checks
+  ansible.builtin.include_tasks:
+    file: assert.yml
+    apply:
+      tags: [deploy, update, rollback]
+  tags: [deploy, update, rollback]
+  when: ansible_run_tags | intersect(['deploy', 'update', 'rollback']) | length > 0
+
+- name: Deploy
+  ansible.builtin.include_tasks:
+    file: deploy.yml
+    apply:
+      tags: [deploy]
+  tags: [deploy]
+  when: "'deploy' in ansible_run_tags"
+
+- name: Update
+  ansible.builtin.include_tasks:
+    file: update.yml
+    apply:
+      tags: [update]
+  tags: [update]
+  when: "'update' in ansible_run_tags"
+
+- name: Rollback
+  ansible.builtin.include_tasks:
+    file: rollback.yml
+    apply:
+      tags: [rollback]
+  tags: [rollback]
+  when: "'rollback' in ansible_run_tags"

@@ -1,0 +1,22 @@
+---
+# defaults file for system_role
+
+deploy_hostname: "{{ inventory_hostname }}"
+
+# Repository sections written to /etc/yum.repos.d/
+deploy_repos:
+  - id: adams-repo-x86_64-9.6-baseos
+    name: Adams local repo for x86_64 - RHEL 9.6 BaseOS
+    baseurl: "http://{{ repo_host }}/adams-repos/rhel9/x86_64/9.6/baseos/rhel-9-for-x86_64-baseos-eus-rpms/"
+    enabled: 1
+    gpgcheck: 0
+  - id: adams-repo-x86_64-9.6-appstream
+    name: Adams local repo for x86_64 - RHEL 9.6 AppStream
+    baseurl: "http://{{ repo_host }}/adams-repos/rhel9/x86_64/9.6/appstream/rhel-9-for-x86_64-appstream-eus-rpms/"
+    enabled: 1
+    gpgcheck: 0
+  - id: adams-repo-x86_64-9-custom
+    name: Adams local repo for x86_64 - RHEL 9 Custom
+    baseurl: "http://{{ repo_host }}/adams-repos/rhel9/x86_64/custom/"
+    enabled: 1
+    gpgcheck: 0

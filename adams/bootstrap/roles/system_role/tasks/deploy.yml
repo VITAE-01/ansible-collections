@@ -1,0 +1,21 @@
+---
+
+- name: Set the hostname
+  tags: deploy
+  ansible.builtin.hostname:
+    name: "{{ deploy_hostname }}"
+    use: systemd
+
+- name: Add the local repository file
+  tags: deploy
+  ansible.builtin.template:
+    src: "{{ redhat_repo_file }}.j2"
+    dest: "{{ redhat_repo_dir }}/{{ redhat_repo_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Refresh the dnf metadata cache (dnf makecache)
+  tags: deploy
+  ansible.builtin.dnf:
+    update_cache: true

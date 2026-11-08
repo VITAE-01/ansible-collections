@@ -1,0 +1,7 @@
+---
+
+- name: Rollback - Remove the local repository file
+  tags: rollback
+  ansible.builtin.file:
+    path: "{{ redhat_repo_dir }}/{{ redhat_repo_file }}"
+    state: absent

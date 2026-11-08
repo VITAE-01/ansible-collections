@@ -1,0 +1,13 @@
+---
+
+- name: Check that repo_host is defined
+  tags: deploy, update, rollback
+  ansible.builtin.assert:
+    that:
+      - repo_host is defined
+      - repo_host is string
+      - repo_host | trim | length > 0
+    fail_msg: >-
+      repo_host is not defined. Set it to the repository server IP or DNS hostname.
+    quiet: true
+  any_errors_fatal: true
