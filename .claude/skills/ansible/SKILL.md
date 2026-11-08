@@ -12,7 +12,9 @@ truth and it takes precedence if anything here disagrees with it.
 Reference implementations to copy from:
 - `adams/shared`: simple roles (`add_user_role`, `add_group_role`) with no OS split.
 - `adams/webservers`: OS-specific roles (`bootstrap_setup_role`, `webservers_role`) and a
-  shared-handler helper (`common_role`).
+  shared-handler helper (`common_role`). These use the older layout.
+- `adams/bootstrap/roles/system_role`: **the reference for new roles**. It has the tag-gated
+  `main.yml`, `pre_tasks.yml` for OS detection, and `assert.yml`.
 
 ## 0. Before you start
 
@@ -33,7 +35,7 @@ Reference implementations to copy from:
 3. Remove any scaffold content that the reference collections don't have, such as `docs/`.
    Keep `meta/runtime.yml` and `plugins/README.md`.
 4. Edit `galaxy.yml` as rules §4 requires:
-   - `namespace: adams`, `name: <collection_name>`, unquoted `version: 1.0.0`
+   - `namespace: adams`, `name: <collection_name>`, unquoted `version: 0.0.1`
    - `license: [GPL-2.0-or-later]`, `license_file: ''`
    - Ask the user for the real `authors`, `description`, `tags` and URLs. Don't invent them
      and don't leave the placeholders in.
@@ -41,8 +43,9 @@ Reference implementations to copy from:
 6. Write the collection `README.md` (rules §7). Use `adams/shared/README.md` as the template
    and change the title, roles, usage and variables.
 7. Validate it (workflow 4).
-8. Make sure nothing but collection directories sits directly under `adams/`, because
-   `release.sh` releases every entry it finds there.
+8. Make sure nothing but collection directories sits directly under `adams/`, because the
+   pipeline treats every entry there as a collection and fails on anything else.
+9. Add the collection name to the `COLLECTION` choices in `jenkinsfile.collections`.
 
 ## 2. Workflow: add a role to a collection
 
@@ -53,20 +56,22 @@ Reference implementations to copy from:
    ```
 2. Lay out `tasks/` with a deploy, an update and a rollback file:
 
-   `tasks/main.yml` holds wiring only:
+   `tasks/main.yml` holds wiring only. Copy it from rules §5 (Tasks) or from
+   `bootstrap/roles/system_role/tasks/main.yml`. Each file is pulled in with `include_tasks`,
+   tagged with its direction, passed on with `apply: tags:`, and guarded by `when:` on
+   `ansible_run_tags`, so **a run without `--tags` does nothing**. Don't use the `never` tag.
    ```yaml
-   ---
-   # tasks file for <role_name>_role
-
-   - name: Include OS-specific variables        # only if the role is OS-specific
-     tags: deploy, update, rollback
-     ansible.builtin.include_vars:
-       file: "{{ ansible_os_family }}.yml"
-
-   - ansible.builtin.import_tasks: deploy.yml
-   - ansible.builtin.import_tasks: update.yml
-   - ansible.builtin.import_tasks: rollback.yml
+   - name: Deploy
+     ansible.builtin.include_tasks:
+       file: deploy.yml
+       apply:
+         tags: [deploy]
+     tags: [deploy]
+     when: "'deploy' in ansible_run_tags"
    ```
+   Add the same block for `update` and `rollback`, and put `pre_tasks.yml` (OS-specific roles)
+   and `assert.yml` (required inputs) first, tagged `[deploy, update, rollback]` with
+   `when: ansible_run_tags | intersect(['deploy', 'update', 'rollback']) | length > 0`.
 
    `tasks/deploy.yml`: first-time install or create. Tag every task with `deploy`.
    ```yaml
@@ -90,13 +95,17 @@ Reference implementations to copy from:
        ...
        state: absent
    ```
-3. **Tag every task, without exception.** Each task gets `deploy`, `update` or `rollback`,
-   because an untagged task runs in every direction. Use FQCN module names only.
+3. **Tag every task, without exception.** Each task gets `deploy`, `update` or `rollback`, in
+   addition to the tag the include passes down, so the direction is still clear when someone
+   reads the file on its own. Use FQCN module names only.
 4. For an OS-specific role:
+   - Write `tasks/pre_tasks.yml` as rules §5 (OS-specific behaviour) describes: gather facts if
+     missing, `set_fact` `_<role>_os_family`, assert it is in `_<role>_supported_os_families`
+     (in `vars/main.yml`), then `include_vars` `<family>.yml`. Copy
+     `bootstrap/roles/system_role/tasks/pre_tasks.yml`.
    - Put values in `vars/Debian.yml` and `vars/RedHat.yml`, using `deb_*` and `redhat_*` names.
    - Split the work into `deb_<action>.yml`, `redhat_<action>.yml`, `deb_rollback.yml` and
-     `redhat_rollback.yml`, guarded by `when: ansible_os_family == '...'`. See
-     `webservers/roles/bootstrap_setup_role/tasks/main.yml` for an example.
+     `redhat_rollback.yml`, guarded by `when: _<role>_os_family == '...'`.
 5. Put user inputs in `defaults/main.yml` as `deploy_<thing>` lists of dicts. Never put real
    secrets there; use `password_hash` placeholders and say in the README that real values
    belong in vault.
@@ -120,8 +129,8 @@ Reference implementations to copy from:
 2. Some existing roles still use the older layout, with `<action>.yml` and `rollback.yml` and
    no `update.yml`. **Don't silently restructure them.** Tell the user and ask whether to
    migrate the role in this change.
-3. **Bump `version:` in that collection's `galaxy.yml`.** Without a bump, `release.sh` sees an
-   existing tag and silently skips the release.
+3. **Bump `version:` in that collection's `galaxy.yml`.** Without a bump, the pipeline sees an
+   existing tag and skips the release.
    - PATCH: bug fix, no interface change.
    - MINOR: new role, new optional variable, new `update` behaviour.
    - MAJOR: renamed or removed role or variable, or changed defaults that alter behaviour.
@@ -143,7 +152,7 @@ cd adams/<collection_name>/roles
 ansible-playbook -i <role>/tests/inventory <role>/tests/test.yml --syntax-check
 cd -
 
-# Build the artifact exactly the way release.sh does, then clean up
+# Build the artifact exactly the way the pipeline does, then clean up
 ansible-galaxy collection build --force adams/<collection_name> --output-path dist/
 rm -rf dist/
 ```
@@ -162,16 +171,23 @@ create that scaffolding unless the user asks.
 
 ## 5. Release (for information only)
 
-You never run `release.sh` yourself, because it pushes tags, creates GitHub releases and
-uploads to Nexus. What you are responsible for is getting the change ready for that release: the version is bumped, validation passes, and the docs are updated. The artifact names are listed in rules §8.
+Releases run in Jenkins from `jenkinsfile.collections`. The pipeline lints, syntax-checks and builds, then on a manual build with `AUTOMATION_BRANCH` publishes to the Nexus Galaxy repository and pushes git tags. 
+You never publish or push tags yourself. What you are responsible for is getting the change ready for that release: the version is bumped, validation passes, and the docs are updated. 
+The artifact names are listed in rules §8.
 
 ## 6. Pitfalls in this repo
 
-- `release.sh` iterates `ls adams/`, so any non-collection file there breaks the release.
-- If the version is quoted or followed by a comment, the tag and tarball names come out
-  broken therefore must follow X.Y.Z exactly, unquoted, on one line.
-- `include_tasks` (dynamic) doesn't pass tags down to the tasks inside it, but
-  `import_tasks` (static) does. Tag the include itself, as `bootstrap_setup_role` does, and
-  tag each task inside it as well.
+- The pipeline iterates `ls adams/`, so any non-collection file there fails the build.
+- The version must be a bare `X.Y.Z`, unquoted, on one line, with no prefix, suffix or comment.
+  Anything else fails the pipeline's "Validate layout" stage.
+- A new collection that isn't in the `COLLECTION` choices of `jenkinsfile.collections` is still
+  released by an `all` build, but it can't be picked on its own.
+- `include_tasks` (dynamic) doesn't pass its tags to the tasks inside it unless you add
+  `apply: tags:`. Without `apply`, `--tags deploy` runs the include but skips everything in it.
+- Tags alone can't stop a run that has no `--tags`, because Ansible then runs every task. The
+  `when:` on `ansible_run_tags` is what makes such a run do nothing. Keep it on every include
+  in `main.yml`.
+- To test a tag-gated role, run its test playbook with `--tags deploy` (or another direction).
+  Without tags it does nothing, so the output tells you nothing.
 - `common_role` is resolved by its short name inside the same collection. To use it from
   another collection, refer to it by its FQCN and declare the dependency in `galaxy.yml`.
