@@ -1,0 +1,189 @@
+def collections = []
+def results = [:]
+
+pipeline {
+    agent { label 'galaxy-archive' }
+
+    parameters {
+        choice(
+            name: 'COLLECTION',
+            choices: ['all', 'bootstrap', 'shared', 'webservers'],
+            description: 'Collection to validate and publish.'
+        )
+        string(
+            name: 'AUTOMATION_BRANCH',
+            defaultValue: 'feature/aa/platform',
+            trim: true,
+            description: 'Branch of the automation repository to use for this build.'
+        )
+        booleanParam(
+            name: 'TLS_VERIFY',
+            defaultValue: false,
+            description: 'Verify Nexus Galaxy TLS certificate.'
+        )
+    }
+
+    options {
+        skipDefaultCheckout()
+        timestamps()
+        disableConcurrentBuilds()
+        timeout(time: 30, unit: 'MINUTES')
+        buildDiscarder logRotator(artifactDaysToKeepStr: '3', artifactNumToKeepStr: '3', daysToKeepStr: '', numToKeepStr: '3')
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                script {
+                    def branch = params.AUTOMATION_BRANCH ?: 'main'
+                    if (!(branch ==~ /[A-Za-z0-9._\/-]+/)) {
+                        error "AUTOMATION_BRANCH '${branch}' is not a valid branch name."
+                    }
+                    checkout([
+                        $class: 'GitSCM',
+                        branches: [[name: "refs/heads/${branch}"]],
+                        userRemoteConfigs: scm.userRemoteConfigs
+                    ])
+                    echo "Building ${branch} at ${sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()}"
+                }
+            }
+        }
+
+        stage('Initialize') {
+            steps {
+                script {
+                    def selected = params.COLLECTION ?: 'all'
+                    if (selected == 'all') {
+                        collections = sh(script: 'ls adams', returnStdout: true).trim().tokenize()
+                    } else {
+                        if (!fileExists("adams/${selected}/galaxy.yml")) {
+                            error "Collection '${selected}' does not exist under adams/."
+                        }
+                        collections = [selected]
+                    }
+                }
+            }
+        }
+
+        stage('Check ansible tools') {
+            steps {
+                sh 'bash ci/check-tools.sh'
+            }
+        }
+
+        stage('Validate Collections') {
+            steps {
+                sh 'bash ci/validate-collections.sh'
+            }
+        }
+
+        stage('Syntax check') {
+            steps {
+                script {
+                    collections.findAll { !results[it] }.each { c ->
+                        withEnv(["COLLECTION_NAME=${c}"]) {
+                            if (sh(script: 'bash ci/syntax-check.sh "$COLLECTION_NAME"', returnStatus: true) != 0) {
+                                results[c] = 'FAILED (syntax check)'
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Build') {
+            steps {
+                script {
+                    sh 'rm -rf dist'
+                    collections.findAll { !results[it] }.each { c ->
+                        withEnv(["COLLECTION_NAME=${c}"]) {
+                            if (sh(script: 'bash ci/build.sh "$COLLECTION_NAME"', returnStatus: true) != 0) {
+                                results[c] = 'FAILED (build)'
+                            }
+                        }
+                    }
+                    sh 'ls -l dist || true'
+                }
+            }
+        }
+
+        stage('Publish to Nexus Galaxy') {
+            when {
+                expression { return params.AUTOMATION_BRANCH == 'main' }
+            }
+            environment {
+                ANSIBLE_GALAXY_SERVER_LIST = 'nexus'
+                ANSIBLE_GALAXY_SERVER_NEXUS_URL = "${env.NEXUS_GALAXY ?: ''}"
+                ANSIBLE_GALAXY_SERVER_NEXUS_VALIDATE_CERTS = "${params.TLS_VERIFY}"
+            }
+            steps {
+                script {
+                    withCredentials([string(credentialsId: 'nexus-galaxy-token',
+                                        variable: 'ANSIBLE_GALAXY_SERVER_NEXUS_TOKEN')]) {
+                        collections.findAll { !results[it] }.each { c ->
+                            withEnv(["COLLECTION_NAME=${c}"]) {
+                                lock(resource: "nexus-galaxy-adams-${c}") {
+                                    def rc = sh(script: 'bash ci/release.sh "$COLLECTION_NAME"', returnStatus: true)
+                                    results[c] = rc == 0  ? 'RELEASED' :
+                                                 rc == 10 ? 'SKIPPED (already released)' :
+                                                 rc == 11 ? 'TAGGED (already in Nexus, missing tag added)' :
+                                                            'FAILED (release)'
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Artifacts') {
+            when {
+                expression { return params.AUTOMATION_BRANCH != 'main' }
+            }
+            steps {
+                script {
+                    def built = collections.findAll { !results[it] }
+                    if (built) {
+                        archiveArtifacts artifacts: 'dist/*.tar.gz', fingerprint: true
+                    }
+                    built.each { c -> results[c] = 'BUILT (archived)' }
+                }
+            }
+        }
+
+        stage('Result') {
+            steps {
+                script {
+                    def failed = results.findAll { k, v -> v.startsWith('FAILED') }.keySet()
+                    if (failed) {
+                        error "Failed collections: ${failed.join(', ')}"
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            script {
+                if (results) {
+                    def summary = collections.collect { c -> "${c}: ${results[c] ?: 'NOT RUN'}" }
+                    echo "Summary (${params.AUTOMATION_BRANCH}):\n  " + summary.join('\n  ')
+                    currentBuild.description = summary.join(' | ')
+                }
+            }
+        }
+        success {
+            echo 'Pipeline completed successfully.'
+        }
+        failure {
+            echo 'Pipeline failed. Please check the logs for details.'
+        }
+        aborted {
+            echo 'Pipeline was aborted.'
+        }
+        cleanup {
+            cleanWs()
+        }
+    }
+}
