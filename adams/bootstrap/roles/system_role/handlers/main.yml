@@ -1,0 +1,7 @@
+---
+# handlers file for system_role
+
+- name: Refresh the dnf metadata cache (dnf makecache)
+  listen: redhat dnf makecache
+  ansible.builtin.dnf:
+    update_cache: true

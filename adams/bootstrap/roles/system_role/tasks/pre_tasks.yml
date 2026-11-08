@@ -1,0 +1,31 @@
+---
+
+- name: Gather OS facts if they were not gathered by the play
+  tags: deploy, update, rollback
+  ansible.builtin.setup:
+    gather_subset:
+      - "!all"
+      - "!min"
+      - distribution
+  when: ansible_os_family is not defined
+
+- name: Record the OS family
+  tags: deploy, update, rollback
+  ansible.builtin.set_fact:
+    _system_os_family: "{{ ansible_os_family }}"
+
+- name: Check that the OS family is supported
+  tags: deploy, update, rollback
+  ansible.builtin.assert:
+    that:
+      - _system_os_family in _system_supported_os_families
+    fail_msg: >-
+      system_role does not support the {{ _system_os_family }} OS family yet
+      (supported: {{ _system_supported_os_families | join(', ') }}).
+    quiet: true
+  any_errors_fatal: true
+
+- name: Include the OS family variables
+  tags: deploy, update, rollback
+  ansible.builtin.include_vars:
+    file: "{{ _system_os_family }}.yml"

@@ -1,0 +1,12 @@
+# {{ ansible_managed }}
+{% for repo in deploy_repos %}
+
+[{{ repo.id }}]
+name={{ repo.name }}
+baseurl={{ repo.baseurl }}
+enabled={{ repo.enabled | default(1) }}
+gpgcheck={{ repo.gpgcheck | default(0) }}
+{% if repo.gpgkey is defined %}
+gpgkey={{ repo.gpgkey }}
+{% endif %}
+{% endfor %}

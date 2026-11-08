@@ -1,0 +1,6 @@
+---
+# vars file for system_role
+
+# OS families this role supports. Each one needs a vars/<family>.yml file.
+_system_supported_os_families:
+  - RedHat

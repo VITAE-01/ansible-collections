@@ -1,7 +1,8 @@
 ---
 paths:
   - "adams/**"
-  - "release.sh"
+  - "jenkinsfile.collections"
+  - "ci/**"
 ---
 
 # Collection rules: `adams` namespace
@@ -17,9 +18,9 @@ collection must copy the layout and conventions of the reference collections,
   with a digit or underscore, and it must not contain `__` or hyphens (for example `databases`
   or `load_balancers`).
 - The directory name must equal `name:` in the collection's `galaxy.yml`.
-- **Only collection directories may exist directly under `adams/`.** `release.sh` runs
-  `ls adams/` and treats every entry as a collection to build and release, so a stray file or
-  folder there breaks the pipeline.
+- **Only collection directories may exist directly under `adams/`.** The pipeline
+  (`jenkinsfile.collections`) treats every entry there as a collection to build and publish, and
+  its "Validate layout" stage fails on any stray file or folder.
 
 ## 2. Creating a collection
 
@@ -50,10 +51,10 @@ adams/<collection_name>/
 
 - `namespace: adams` is always this value.
 - `name: <collection_name>` must match the directory name.
-- `version:` uses semantic versioning (`MAJOR.MINOR.PATCH`). New collections start at `1.0.0`.
-  - Write it **unquoted on one top-level line**, as in `version: 1.0.0`. `release.sh` reads it
-    with `grep '^version:' | awk '{print $2}'`, so quotes or an inline comment would end up in
-    the tag and tarball names.
+- `version:` uses semantic versioning (`MAJOR.MINOR.PATCH`). New collections start at `0.0.1`.
+  - Write it as a bare `X.Y.Z`, **unquoted on one top-level line** with no prefix, suffix or
+    comment, as in `version: 0.0.1`. The pipeline reads it with
+    `grep '^version:' | awk '{print $2}'` and fails the build if it isn't a bare `X.Y.Z`.
 - `readme: README.md`
 - `license: [GPL-2.0-or-later]` with `license_file: ''`, the same as the existing collections.
 - Give `authors`, `description`, `tags`, `repository`, `documentation`, `homepage` and `issues`
@@ -80,7 +81,9 @@ role must have the layout below. Some existing roles still use the older `<actio
 ├── handlers/main.yml
 ├── meta/main.yml
 ├── tasks/
-│   ├── main.yml
+│   ├── main.yml          # entry point: tag-gated includes only (see Tasks)
+│   ├── pre_tasks.yml     # OS family detection + vars loading (OS-specific roles)
+│   ├── assert.yml        # pre-flight checks on required inputs (when the role has any)
 │   ├── deploy.yml
 │   ├── update.yml
 │   └── rollback.yml
@@ -98,19 +101,66 @@ share handlers or vars with sibling roles, like `webservers/roles/common_role`, 
 `tasks/`, `tests/` and `meta/`.
 
 ### Tasks
-- `tasks/main.yml` is the role's entry point and contains no logic. It only imports the deploy,
-  update and rollback files. Use `import_tasks` (static) so the tags on the imported tasks
-  apply; an OS-specific role loads its vars first (see below).
+- `tasks/main.yml` is the role's entry point and contains no logic. It only includes the
+  pre-task, assert, deploy, update and rollback files with `ansible.builtin.include_tasks`.
+  **A run without `--tags deploy`, `update` or `rollback` must do nothing.** Each include
+  therefore:
+  - carries its direction tag(s),
+  - passes them to the included tasks with `apply: tags:` (a dynamic include does not do this on its own),
+  - runs only when its tag was requested, via `when:` on `ansible_run_tags`, which is `['all']`
+    when no tags are passed.
+
+  Do not use the special `never` tag. Reference: `adams/bootstrap/roles/system_role`.
   ```yaml
   ---
   # tasks file for <role_name>_role
+  # Nothing runs unless --tags deploy, update or rollback is passed.
 
-  - ansible.builtin.import_tasks: deploy.yml
-  - ansible.builtin.import_tasks: update.yml
-  - ansible.builtin.import_tasks: rollback.yml
+  - name: Pre-tasks - detect the OS family and load its variables   # OS-specific roles only
+    ansible.builtin.include_tasks:
+      file: pre_tasks.yml
+      apply:
+        tags: [deploy, update, rollback]
+    tags: [deploy, update, rollback]
+    when: ansible_run_tags | intersect(['deploy', 'update', 'rollback']) | length > 0
+
+  - name: Pre-flight checks                                          # when the role has assert.yml
+    ansible.builtin.include_tasks:
+      file: assert.yml
+      apply:
+        tags: [deploy, update, rollback]
+    tags: [deploy, update, rollback]
+    when: ansible_run_tags | intersect(['deploy', 'update', 'rollback']) | length > 0
+
+  - name: Deploy
+    ansible.builtin.include_tasks:
+      file: deploy.yml
+      apply:
+        tags: [deploy]
+    tags: [deploy]
+    when: "'deploy' in ansible_run_tags"
+
+  - name: Update
+    ansible.builtin.include_tasks:
+      file: update.yml
+      apply:
+        tags: [update]
+    tags: [update]
+    when: "'update' in ansible_run_tags"
+
+  - name: Rollback
+    ansible.builtin.include_tasks:
+      file: rollback.yml
+      apply:
+        tags: [rollback]
+    tags: [rollback]
+    when: "'rollback' in ansible_run_tags"
   ```
-- **Every task has the tag `deploy`, `update` or `rollback`.**. Callers choose the direction with `--tags deploy`
-  or `--tags update` or `--tags rollback`.
+- **Every task has the tag `deploy`, `update` or `rollback`**, as well as the include that
+  pulls it in. Callers choose the direction with `--tags deploy`, `--tags update` or
+  `--tags rollback`, and can combine them (`--tags deploy,update`).
+- Assertions that must stop the whole play (missing required input, unsupported OS) use
+  `any_errors_fatal: true`.
 - **Every role ships a rollback** that undoes its deploy tasks where possible, such as stopping
   services or removing packages, files and users. Rollback task names start with
   `Rollback - `, as in `Rollback - Delete Users`.
@@ -120,18 +170,21 @@ share handlers or vars with sibling roles, like `webservers/roles/common_role`, 
 - Use `block`/`rescue` where a failure should be handled gracefully, as `add_user.yml` does.
 
 ### OS-specific behaviour
-- Load the OS vars with:
-  ```yaml
-  - name: Include OS-specific variables
-    tags: deploy, update, rollback
-    ansible.builtin.include_vars:
-      file: "{{ ansible_os_family }}.yml"
-  ```
+- Detect the OS family and load its vars in `tasks/pre_tasks.yml`, never in `main.yml`:
+  1. gather facts with `ansible.builtin.setup` (`gather_subset: [distribution]`) when
+     `ansible_os_family is not defined`,
+  2. `set_fact` the family into an internal variable, e.g. `_<role>_os_family`,
+  3. `assert` (with `any_errors_fatal: true`) that it is in `_<role>_supported_os_families`,
+     defined in `vars/main.yml`,
+  4. `include_vars` `"{{ _<role>_os_family }}.yml"`.
+
+  Supporting a new OS family means adding it to `_<role>_supported_os_families`, adding
+  `vars/<family>.yml`, and adding its `<os>_*.yml` task files.
 - Put the values in `vars/Debian.yml` and `vars/RedHat.yml`, and prefix the variable names by
   OS family: `deb_packages`, `deb_services`, `redhat_packages`, `redhat_services`.
 - Name OS-specific task files `<os>_<action>.yml` and `<os>_rollback.yml` (for example
   `deb_package.yml` or `redhat_rollback.yml`), and guard them with
-  `when: ansible_os_family == 'Debian'` or `'RedHat'`.
+  `when: _<role>_os_family == 'Debian'` or `'RedHat'`.
 
 ### Variables and handlers
 - User inputs go in `defaults/main.yml` as lists of dicts named `deploy_<thing>`, for example
@@ -161,25 +214,37 @@ share handlers or vars with sibling roles, like `webservers/roles/common_role`, 
 
 ## 8. Versioning and release
 
-- Each collection is released separately. A release is triggered manually in Jenkins, which
-  runs `release.sh` based on the job's parameters. (The CI details are still being refined.)
+- Releases are handled by the Jenkins pipeline in `jenkinsfile.collections` (`release.sh` has
+  been removed). Every build lints, syntax-checks and builds the selected collection(s). A
+  manually triggered build with the `AUTOMATION_BRANCH` parameter set to `main` also publishes them to the Nexus Galaxy
+  repository with `ansible-galaxy collection publish` and pushes a git tag. The `COLLECTION`
+  build parameter picks one collection or `all`.
+- **When you add a collection, add its name to the `COLLECTION` choices in
+  `jenkinsfile.collections`.**
+- The pipeline steps live in `ci/` (`check-tools.sh`, `validate-collections.sh`,
+  `syntax-check.sh`, `build.sh`, `release.sh` and `nexus-version-exists.py`), and
+  `jenkinsfile.collections` only wires them into stages. Change the steps there, not inline in
+  the Jenkinsfile. `ci/` sits at the repository root, never under `adams/`.
 - A release happens only when `version` in `galaxy.yml` changes. If the version is unchanged,
-  its tag already exists and the collection is skipped. **Bump the version in every PR that
-  changes a collection:**
+  its tag already exists on GitHub and the collection is skipped. **Bump the version in every PR
+  that changes a collection:**
   - PATCH for fixes
   - MINOR for new roles or backwards-compatible variables
   - MAJOR for breaking changes, such as renamed or removed roles or variables
 - Released artifacts use the names below. Do not rename a collection after it has been
   released.
-  - Git tag and GitHub release: `<collection_name>-v<VERSION>-<ENV>`
+  - Git tag: `<collection_name>-<VERSION>` (e.g. `bootstrap-0.0.1`), with no prefix or suffix
   - Built tarball: `adams-<collection_name>-<VERSION>.tar.gz`
-  - Nexus path: `<NEXUS_REPO_URL>/adams-<collection_name>-<VERSION>-<ENV>.tar.gz`
+  - Nexus Galaxy: `adams.<collection_name>` version `<VERSION>`
 
 ## 9. Checklist for a new collection
 
 - [ ] `adams/<collection_name>/` exists, has a valid name, and matches `name` in `galaxy.yml`
-- [ ] `galaxy.yml` has `namespace: adams`, an unquoted `version: 1.0.0`, GPL-2.0-or-later and no placeholders
+- [ ] `galaxy.yml` has `namespace: adams`, an unquoted `version: 0.0.1`, GPL-2.0-or-later and no placeholders
+- [ ] The collection name is added to the `COLLECTION` choices in `jenkinsfile.collections`
 - [ ] `meta/runtime.yml`, `plugins/README.md` and `README.md` are present
 - [ ] Every role name ends in `_role`, and each role has `deploy.yml`, `update.yml` and `rollback.yml`, with every task tagged `deploy` or `update` or `rollback`
+- [ ] `tasks/main.yml` only has tag-gated `include_tasks` (with `apply: tags:` and a `when:` on `ansible_run_tags`), so a run without `--tags` does nothing
+- [ ] An OS-specific role detects the OS family and loads `vars/<family>.yml` in `tasks/pre_tasks.yml`
 - [ ] Modules use FQCN, and OS vars are in `vars/Debian.yml` and `vars/RedHat.yml`
 - [ ] `ansible-galaxy collection build` succeeds

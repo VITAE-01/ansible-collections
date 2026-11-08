@@ -1,0 +1,5 @@
+---
+# RedHat-family vars for system_role
+
+redhat_repo_dir: /etc/yum.repos.d
+redhat_repo_file: adamslab.repo
